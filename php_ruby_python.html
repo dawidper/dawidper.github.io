@@ -1,0 +1,282 @@
+<html>
+<head>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
+            integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS"
+            crossorigin="anonymous"></script>
+    <link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.6/superhero/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-88w0u/oucDSTE30ETLLIobzhT+bQ6CSsiqQyLZpwHvve89eqUA9F2Db6ST6jGRLx" crossorigin="anonymous">
+</head>
+
+<body>
+<div class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <a href="../" class="navbar-brand">Dape.in</a>
+            <button class="navbar-toggle" type="button" data-toggle="collapse" data-target="#navbar-main">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<div class="container">
+
+
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+            </div>
+            <div class="bs-component">
+                <h1>Ruby vs PHP vs Python - simple microservice performance comparison</h1>
+                <h4>For the last couple of years we observe slow but steady shift from building big "all-in-one" apps
+                    (also known as Monoliths) towards distributed small architectures with separated responsibilities
+                    (a.k.a. microservices).
+                    As with any aspect of development there is a constant bragging about which of technologies are best
+                    for those kind of apps. Today we are going to check how three most known and popular technologies
+                    compare when it comes to straight performance.</h4>
+            </div>
+            <p>
+                Lately I've migrated most of my infrastructure from dedicated/self-managed strong servers to Amazon
+                Cloud Services (I changed strong multiprocessor servers with tones of RAM for small vm's and hosted
+                services). Moving to instances so much slower than what i was used to
+                forced me to split my Monolith-type app into many independently running services. <br/><br/>
+                These days we do have many very similar languages or frameworks that are mirroring each other to provide
+                very similar developing experience never mind the language or technology stack. <br/> Since they are so
+                familiar when it comes to coding, can we just say that choice is only a matter of preference ?
+                As we will learn in a moment very similar code can give extremely different results
+                when it comes to performance. Since all the comparisons I was able to find based either on benchmarking
+                framework bootstraping or heavy web applications like drupal/wordpress I found that they don't
+                correspond to microservices. Additionally all ignored concurrent connections scaling aspect that is crucial to overall architecture cost. <br/>
+
+            </p>
+            <p>
+            <dl>
+                <dt>PHP stack:</dt>
+                <dd>PHP 7, Lumen, NGINX, </dd>
+            </dl>
+            <dl>
+                <dt>Ruby stack:</dt>
+                <dd>Ruby 2.2, Padrino/Sinatra, Unicorn + NGINX</dd>
+            </dl>
+            <dl>
+                <dt>Python stack:</dt>
+                <dd>Python 3, Flask, uWSGI + NGINX, </dd>
+            </dl>
+            </p>
+
+
+            <p>
+                <strong>
+                    Test itself
+                </strong> <br/>
+                Since whole micro-framework approach is based on KISS principle I've decided to make this test simple yet
+                meaningful with task as common as possible - retrieving, filtering and displaying list of results from
+                database. <br/>
+                I've created "users" table with 100 generated results that are being reused by all frameworks. All user
+                emails have "gmail.com" added to them. <br/>
+                For this test to lower the chance of any outside influence Sqlite3 will be used as db engine.
+            </p>
+
+            <p>
+                <strong>
+                    PHP Code
+                </strong>
+            <pre>
+$app->get('/', function () use ($app) {
+    $users = $app->make('db')->select("SELECT * FROM users");
+    $emails = [];
+    foreach($users as $user)
+    {
+        if (strpos($user->email,'gmail') !== null)
+            $emails[] = $user->email;
+        }
+    }
+    print implode(" ",$emails);
+}
+            </pre>
+            <strong>
+                Ruby
+            </strong>
+            <pre>
+Bench::App.controllers :benchmark do
+   get :index, :map => '/' do
+     emails = Array.new
+     User.all.each do |user|
+        if user.email.include? "gmail.com"
+        emails.push(user.email)
+        end
+     end
+     emails
+  end
+end</pre>
+            <strong>
+                Python
+            </strong>
+            <pre>
+@app.route("/")
+def hello():
+        con = sqlite3.connect('test.sqlite')
+        con.row_factory = sqlite3.Row
+        cur = con.cursor()
+        cur.execute("SELECT * FROM users")
+        data = cur.fetchall()
+        emails = []
+        for row in data:
+            x = row[3].find("gmail")
+            if (x > 0):
+                emails.append(row[3])
+        return " ".join(emails)</pre>
+            <strong>
+                Methodology
+            </strong><br/>
+            Every stack is going to be tested for time serving 5000 requests with three different concurrency settings
+            (1, 50 250 and 500 connections). For testing I am using idle server with following specs:
+            <br/>
+            CPU: Intel(R) Xeon(R) CPU E5-1620 v2 <br/>
+            RAM: 64GB <br/>
+            All files including code and Sqlite DB file are stored on SSD drive. <br/>
+            Benchmark is being run from another idle server within same network <br/>
+
+
+            <br />tl;dr: <br />
+
+            <img src="/img/2/20160531083947.png">
+
+            <br />
+
+            <h2>
+                Summary
+            </h2>
+            It looks like Zend team finally nailed it with newest revision of Zend Engine. Not only it's outperforming both Ruby and Python based solution it was only engine that
+            passed 500 concurrent connections test without failing any.<br />
+            <br />
+            * I'm going to extend this test with NodeJS and do another approach to Ruby with Torque4 that from what I'm being told can be very fast.
+            <br />
+
+            <h2>Detailed results:</h2>
+
+            <strong>
+                2000 requests, 20 concurrent connections:
+            </strong>
+            <br/>
+            <pre>
+                <strong>PHP 7</strong>
+Concurrency Level:      20
+Time taken for tests:   0.764 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      4478000 bytes
+HTML transferred:       4156000 bytes
+Requests per second:    2618.62 [#/sec] (mean)
+Time per request:       7.638 [ms] (mean)
+Time per request:       0.382 [ms] (mean, across all concurrent requests)
+Transfer rate:          5725.67 [Kbytes/sec] received
+
+                <strong>Ruby 2.2</strong>
+Concurrency Level:      20
+Time taken for tests:   1.711 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      5122000 bytes
+HTML transferred:       3636000 bytes
+Requests per second:    1169.24 [#/sec] (mean)
+Time per request:       17.105 [ms] (mean)
+Time per request:       0.855 [ms] (mean, across all concurrent requests)
+Transfer rate:          2924.25 [Kbytes/sec] received
+                <strong>Python 3</strong>
+Concurrency Level:      20
+Time taken for tests:   1.164 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      4472000 bytes
+HTML transferred:       4156000 bytes
+Requests per second:    1717.68 [#/sec] (mean)
+Time per request:       11.644 [ms] (mean)
+Time per request:       0.582 [ms] (mean, across all concurrent requests)
+Transfer rate:          3750.71 [Kbytes/sec] received
+            </pre>
+            <strong>
+                2000 requests, 100 concurrent connections:
+            </strong>
+            <br/>
+            <pre>
+                <strong>PHP 7</strong>
+Concurrency Level:      100
+Time taken for tests:   0.854 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      4478000 bytes
+HTML transferred:       4156000 bytes
+Requests per second:    2342.17 [#/sec] (mean)
+Time per request:       42.695 [ms] (mean)
+Time per request:       0.427 [ms] (mean, across all concurrent requests)
+Transfer rate:          5121.21 [Kbytes/sec] received
+                <strong>Ruby 2.2</strong>
+Concurrency Level:      100
+Time taken for tests:   1.635 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      5122000 bytes
+HTML transferred:       3636000 bytes
+Requests per second:    1222.88 [#/sec] (mean)
+Time per request:       81.774 [ms] (mean)
+Time per request:       0.818 [ms] (mean, across all concurrent requests)
+Transfer rate:          3058.39 [Kbytes/sec] received
+
+                <strong>Python 3</strong>
+Concurrency Level:      100
+Time taken for tests:   1.163 seconds
+Complete requests:      2000
+Failed requests:        0
+Total transferred:      4472000 bytes
+HTML transferred:       4156000 bytes
+Requests per second:    1719.48 [#/sec] (mean)
+Time per request:       58.157 [ms] (mean)
+Time per request:       0.582 [ms] (mean, across all concurrent requests)
+Transfer rate:          3754.65 [Kbytes/sec] received
+            </pre>
+            <strong>
+                5000 requests, 500 concurrent connections:
+            </strong>
+            <br/>
+            <pre>
+                <strong>PHP 7</strong>
+Concurrency Level:      500
+Time taken for tests:   3.264 seconds
+Complete requests:      5000
+Failed requests:        0
+Requests per second:    1531.68 [#/sec] (mean)
+Time per request:       326.438 [ms] (mean)
+Time per request:       0.653 [ms] (mean, across all concurrent requests)
+                <strong>Ruby 2.2</strong>
+Concurrency Level:      500
+Time taken for tests:   5.892 seconds
+Complete requests:      5000
+Failed requests:        302
+Requests per second:    797.41 [#/sec] (mean)
+Time per request:       627.032 [ms] (mean)
+Time per request:       1.254 [ms] (mean, across all concurrent requests)
+                <strong>Python 3</strong>
+Concurrency Level:      500
+Time taken for tests:   3.313 seconds
+Complete requests:      5000
+Failed requests:        341
+Requests per second:    1592.22 [#/sec] (mean)
+Time per request:       31.265 [ms] (mean)
+Time per request:       0.063 [ms] (mean, across all concurrent requests)
+            </pre>
+
+            </p>
+
+
+        </div>
+    </div>
+</div>
+</body>
+
+</html>
